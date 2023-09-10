@@ -4,7 +4,6 @@ use std::{
 };
 
 pub struct ThreadPool {
-    size: usize,
     workers: Vec<Worker>,
     sender: Option<Sender<Job>>,
 }
@@ -47,7 +46,6 @@ impl ThreadPool {
         let (rx, tx) = channel();
         let tx = Arc::new(Mutex::new(tx));
         ThreadPool { 
-            size, 
             workers: (0..size).map(|id| Worker::new(id, Arc::clone(&tx))).collect(), 
             sender: Some(rx) }
     }

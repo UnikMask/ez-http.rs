@@ -1,18 +1,49 @@
 use ez_http_rs::ThreadPool;
+use serde::{Deserialize, Serialize};
 use signal_hook;
 use std::{
     fs,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{atomic::{AtomicBool, Ordering}, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let pool = ThreadPool::new(4);
+#[derive(Debug, Deserialize, Serialize)]
+struct Config {
+    address: String,
+    port: String,
+    threads: usize,
+}
 
+fn main() {
+    // Grab config file
+    let config_file = fs::read_to_string("./config.ron");
+    if let Err(error) = config_file {
+        println!("Couldn't find config file! {:?}", error);
+        return
+    }
+    let config = ron::from_str::<Config>(&config_file.unwrap()); 
+    if let Err(error) = config.as_ref() {
+        println!("Couldn't parse config file! {:?}", error);
+        return;
+    }
+    let config = config.unwrap();
+
+    let full_address = format!("{}:{}", config.address, config.port);
+    let listener = TcpListener::bind(full_address.clone());
+    if let Err(error) = listener.as_ref() {
+        println!("Couldn't bind to {}! {}", full_address, error);
+        return;
+    }
+    let listener = listener.unwrap();
+    let pool = ThreadPool::new(config.threads);
+
+    // Set terminal catching commands for graceful shutdown.
     let term = Arc::new(AtomicBool::new(false));
     let _ = signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term)).unwrap();
     let _ = signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term)).unwrap();
